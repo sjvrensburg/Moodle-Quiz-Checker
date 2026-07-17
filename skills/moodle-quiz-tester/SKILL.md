@@ -76,6 +76,15 @@ whole quiz (warns at ≥50% per question).
 Fix every ERROR at the source (`.Rmd`/generator, not the XML) and re-lint.
 WARNs and INFOs need judgment — report them with your recommendation.
 
+Known false positive: in an R/exams multi-version bank, `shared-attachment`
+fires when the *five versions of one item* embed the same filename. That is
+the intended per-version pattern, not a violation — the rule targets sharing
+across *different* items. Check whether the flagged questions are versions
+of one item (same base name), and confirm the file *contents* differ per
+version (decode and hash `files[].data_base64`) before dismissing it: same
+name AND same bytes across versions means the data is not being regenerated
+(see Gate 3).
+
 ### Gate 2 — `autotest` (answer-key round-trip)
 
 ```bash

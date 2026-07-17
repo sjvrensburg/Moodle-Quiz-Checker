@@ -23,16 +23,30 @@ You may NOT read: `fraction` values, `numerical_answers`, `match_pairs`
 feedback of any kind, or any autotest/compare output. Practically: extract a
 student view first, then never open the full `show` JSON until pass 2.
 
+**Cloze warning:** for cloze questions, `question_text` itself contains the
+raw `{n:NUMERICAL:=42:0.5}` markers — i.e. the answer key. Moodle strips
+these at render time; a naive extraction does not. The jq below therefore
+replaces every `{...}` cloze marker with `____` before you read it. Do not
+skip that step, and if you accidentally see a key, say so in the report —
+for numeric blanks you can preserve the pass's value by *recomputing* the
+answer from the attached data/scripts rather than recalling what you saw.
+
 ```bash
-# Student view: question text + shuffled-safe option texts only
+# Student view: question text (cloze markers blanked) + option texts only
 mqt-cli --db "$DB" show <quiz-id> \
-  | jq '[.questions[] | {id, name, qtype, question_text,
+  | jq '[.questions[] | {id, name, qtype,
+         question_text: (.question_text | gsub("\\{[0-9]*:[A-Z_]+:[^}]*\\}"; "____")),
          options: [.answers[]?.text],
          cloze: [.cloze_items[]? | {index, kind, options: [.options[].text]}],
          match_stems: [.match_pairs[]?.question_text],
          match_pool: [.match_pairs[]?.answer_text],
          files: [.files[]?.name]}]' > /tmp/student-view.json
 ```
+
+Note the `cloze` option lists are safe (texts only, no fractions), and for
+questions with attached scripts/data the honest pass means actually
+downloading the attachments (decode `files[].data_base64` from the full
+`show` JSON — the data, not the answers) and doing the analysis.
 
 ## Pass 1 — honest student
 
