@@ -30,6 +30,35 @@ you bring your own agent (an Ollama model, Claude, whatever).
   HTTP API for driving attempts programmatically.
 - **Dark mode**, keyboard-friendly navigation.
 
+## Installing a prebuilt release
+
+After `npm run tauri build` (see below), Linux bundles land in
+`src-tauri/target/release/bundle/`:
+
+```bash
+# .deb (Debian/Ubuntu)
+sudo dpkg -i src-tauri/target/release/bundle/deb/moodle-quiz-tester_*.deb
+
+# .rpm (Fedora/openSUSE)
+sudo rpm -i src-tauri/target/release/bundle/rpm/moodle-quiz-tester-*.rpm
+
+# .AppImage (portable, no install) — drop it anywhere on PATH, e.g. ~/bin
+cp src-tauri/target/release/bundle/appimage/moodle-quiz-tester_*.AppImage ~/bin/moodle-quiz-tester
+chmod +x ~/bin/moodle-quiz-tester
+
+# mqt-cli is a separate binary (not embedded in the AppImage's entrypoint) —
+# install it alongside for headless/agent use:
+cp src-tauri/target/release/mqt-cli ~/bin/mqt-cli
+```
+
+## Claude Code skill
+
+A `moodle-quiz-tester` skill (`~/.claude/skills/moodle-quiz-tester/`) teaches
+Claude Code how to drive `mqt-cli`/the agent HTTP API to validate a Moodle
+XML quiz — parse fidelity, grading correctness, embedded attachments — plus
+an authoring-tool-independent quiz quality checklist. Invoke it with the
+skill name when reviewing a Moodle XML export, from this repo or any other.
+
 ## Project layout
 
 ```
