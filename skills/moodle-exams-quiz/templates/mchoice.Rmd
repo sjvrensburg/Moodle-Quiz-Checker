@@ -1,0 +1,58 @@
+Question
+========
+
+```{r, echo=FALSE, results="hide"}
+## --- Statement pools ---------------------------------------------------
+## Keep a pool of true and a pool of false statements. Sample a random
+## number from each so the count of correct answers varies by version.
+true_pool <- list(
+  "A `num` blank in a cloze grades the answer within the `extol` tolerance.",
+  "`exsolution` for a single-choice question is a binary string with one `1`.",
+  "`exshuffle: TRUE` shuffles option order when the question is generated.",
+  "`include_supplement()` makes a file downloadable from the question."
+)
+
+false_pool <- list(
+  "Display math in a Moodle question should be written with `\\[ ... \\]`.",
+  "A `~` inside a cloze option string is rendered literally by Moodle.",
+  "Exam quizzes should be generated with `n = 5` versions per question.",
+  "`max()` performs an element-wise comparison across a vector in R."
+)
+
+n_true  <- sample(2:3, 1)
+n_false <- 5L - n_true
+sel_t   <- sample(length(true_pool),  n_true)
+sel_f   <- sample(length(false_pool), n_false)
+
+texts <- c(unlist(true_pool[sel_t]), unlist(false_pool[sel_f]))
+corr  <- c(rep(TRUE, n_true),        rep(FALSE, n_false))
+
+ord     <- sample(length(texts))         # shuffle order
+answers <- texts[ord]
+sol     <- corr[ord]
+
+explanations <- ifelse(sol, "True.", "False.")
+```
+
+Select **all** correct statements below. **Note:** more than one statement
+is correct.
+
+```{r questionlist, echo=FALSE, results="asis"}
+answerlist(answers, markup = "markdown")
+```
+
+Solution
+========
+
+A statement is true exactly when it states the R/exams behaviour correctly.
+
+```{r solutionlist, echo=FALSE, results="asis"}
+answerlist(explanations, markup = "markdown")
+```
+
+Meta-information
+================
+extype: mchoice
+exsolution: `r mchoice2string(sol)`
+exname: True/false about R-exams
+exshuffle: TRUE

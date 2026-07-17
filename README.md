@@ -51,21 +51,34 @@ chmod +x ~/bin/moodle-quiz-tester
 cp src-tauri/target/release/mqt-cli ~/bin/mqt-cli
 ```
 
-## Claude Code skill
+## Claude Code skills
 
-The repo ships a `moodle-quiz-tester` skill under [`skills/moodle-quiz-tester/`](skills/moodle-quiz-tester/)
-that teaches Claude Code (or any agent that reads it) how to drive
-`mqt-cli`/the agent HTTP API to validate a Moodle XML quiz: the mechanical
-gates (`lint` → `autotest` → `compare`), an adversarial-student review
-protocol, a distractor/feedback rubric, and a structured review-report
-template. Install it by copying it into your skills directory:
+The repo ships two complementary skills under [`skills/`](skills/) that
+together cover the full author → validate pipeline for agent-driven Moodle
+quiz development:
+
+- **`moodle-quiz-tester`** (validation) — teaches Claude Code (or any agent
+  that reads it) how to drive `mqt-cli`/the agent HTTP API to validate a
+  Moodle XML quiz: the mechanical gates (`lint` → `autotest` → `compare`),
+  an adversarial-student review protocol, a distractor/feedback rubric, and
+  a structured review-report template.
+- **`moodle-exams-quiz`** (authoring) — how to author randomised Moodle
+  quizzes in R Markdown with R's [`exams`](https://www.r-exams.org) package
+  (`exams2moodle`): schoice/mchoice/num/cloze question templates, the paired
+  student-`.R`/answer-key-`.Rmd` workflow, per-version data regeneration,
+  generator scripts, and the pitfalls that cause silent student-facing
+  breakage. Module names/notation are generic placeholders — adapt the
+  conventions to your own course.
+
+Install by copying into your skills directory:
 
 ```bash
-cp -r skills/moodle-quiz-tester ~/.claude/skills/
+cp -r skills/moodle-quiz-tester skills/moodle-exams-quiz ~/.claude/skills/
 ```
 
-Then invoke it by name when reviewing a Moodle XML export, from this repo or
-any other.
+Then invoke by name: `moodle-exams-quiz` when writing questions,
+`moodle-quiz-tester` when checking the generated XML — from this repo or any
+other.
 
 ## Project layout
 

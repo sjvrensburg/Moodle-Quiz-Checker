@@ -1,0 +1,51 @@
+Question
+========
+
+```{r, echo=FALSE, results="hide"}
+## --- Randomise values -------------------------------------------------
+## Draw all random pieces here, then interpolate every number with `r ...`
+## so the prose, the options, and the solution stay consistent.
+a <- sample(2:9, 1)
+b <- sample(2:9, 1)
+correct <- a * b
+
+## --- Options + solution vector ---------------------------------------
+## Build distractors FROM the random values by applying a wrong operation,
+## so each distractor encodes a specific, plausible mistake.
+answers <- c(
+  paste0("$", correct, "$"),        # correct: a * b
+  paste0("$", a + b, "$"),          # added instead of multiplied
+  paste0("$", a * b + a, "$"),      # off-by-a-term slip
+  paste0("$", abs(a - b), "$")      # subtracted
+)
+sol <- c(TRUE, FALSE, FALSE, FALSE)
+
+explanations <- c(
+  paste0("Correct. $", a, " \\times ", b, " = ", correct, "$."),
+  paste0("Incorrect. This adds the two numbers ($", a, " + ", b, "$) instead of multiplying them."),
+  "Incorrect. This adds an extra term that does not belong in the product.",
+  paste0("Incorrect. This subtracts the two numbers instead of multiplying them.")
+)
+```
+
+Compute the product $`r a` \times `r b`$.
+
+```{r questionlist, echo=FALSE, results="asis"}
+answerlist(answers, markup = "markdown")
+```
+
+Solution
+========
+
+The product is $`r a` \times `r b` = `r correct`$.
+
+```{r solutionlist, echo=FALSE, results="asis"}
+answerlist(explanations, markup = "markdown")
+```
+
+Meta-information
+================
+extype: schoice
+exsolution: `r mchoice2string(sol, single = TRUE)`
+exname: Product of two integers
+exshuffle: TRUE

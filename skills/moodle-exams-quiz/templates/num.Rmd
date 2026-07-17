@@ -1,0 +1,39 @@
+Question
+========
+
+```{r, echo=FALSE, results="hide"}
+## Randomise the data, then compute the answer. Never transcribe a number.
+set.seed(NULL)                          # remove or set a fixed seed if values must be stable
+n  <- sample(20:40, 1)
+x  <- round(rnorm(n, mean = 50, sd = 8), 2)
+
+answer <- round(var(x), 4)              # the quantity the student must report
+```
+
+The vector `x` below contains $`r n`$ observations:
+
+$$`r paste(x, collapse = ",\\; ")`$$
+
+Compute the **sample variance** of `x` (using the $n - 1$ denominator).
+Round your answer to **four decimal places**.
+
+```{r echo=FALSE, results="hide"}
+## NOTE: a single-answer `num` question needs NO answer marker — exams
+## appends the answer box automatically from the metadata below. The
+## `##ANSWERn##` markers are ONLY for multi-blank `cloze` questions.
+```
+
+Solution
+========
+
+The sample variance is
+$$s^2 = \frac{1}{n-1}\sum_{i=1}^{n}(x_i - \bar{x})^2 = `r answer`.$$
+In R: `var(x)`.
+
+Meta-information
+================
+extype: num
+exsolution: `r answer`
+extol: 0.005
+exname: Sample variance
+exshuffle: TRUE

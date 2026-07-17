@@ -1,0 +1,151 @@
+```{r data-generation, echo=FALSE, results="hide", message=FALSE, warning=FALSE}
+library(exams)
+
+## PER-VERSION variant (the DEFAULT for practice quizzes, n > 1): fresh data
+## AND a freshly customised downloadable script every version, via rejection
+## sampling. For n = 1 tests/exams, or a practice item deliberately about one
+## unchanging dataset, use the fixed-seed `cloze_mixed.Rmd` template instead.
+## See "Per-version regenerated data" in reference/generators-and-data.md.
+
+## ── compute(seed): EXACTLY what the finished student script does ─────────
+## Its return value is both this version's answer key AND what the
+## rejection loop below inspects to decide whether to accept the seed.
+compute <- function(seed) {
+  set.seed(seed)
+  n <- 60
+  x <- rnorm(n, mean = 50, sd = 10)
+  y <- 3 + 0.8 * x + rnorm(n, mean = 0, sd = 5)
+  fit <- lm(y ~ x)
+
+  list(
+    slope = round(unname(coef(fit)["x"]), 4),
+    r2    = round(summary(fit)$r.squared,  4)
+  )
+}
+
+## ── Per-version seed: rejection-sample so the story is clean ─────────────
+## Accept only seeds giving a strong, unambiguous, positive slope — adjust
+## the bounds to whatever this question's narrative actually needs. Keep
+## the check as loose as the pedagogy allows; over-constraining just makes
+## the loop slower (or, worst case, non-terminating).
+repeat {
+  seed <- sample(10000:99999, 1)
+  a <- compute(seed)
+  if (a$r2 >= 0.5 && a$slope > 0) break
+}
+
+## ── Write THIS version's student script and attach it for download ───────
+## __SEED__ (and any other __PLACEHOLDER__s) are substituted per version;
+## everything else in the template is identical across versions.
+script_template <- '# ============================================================================
+# MODULE Practical - <topic>: <one-line scenario>
+# ============================================================================
+#
+# Scenario: <describe the scenario in plain English>.
+#
+# HOW TO USE THIS SCRIPT
+#   1. Replace every your_code_goes_here() with your own code.
+#   2. Do NOT change the data block or the set.seed(...) lines: the seed keeps
+#      your answers identical to the marking key.
+#   3. Run the whole script with Source. Enter the printed values into Moodle.
+#
+# Round numeric answers to FOUR decimal places.
+# ============================================================================
+
+your_code_goes_here <- function(...) {
+  stop("Placeholder not replaced. Replace each your_code_goes_here() with your own code.")
+}
+
+# -- Data generation (do NOT change) -----------------------------------------
+set.seed(__SEED__)
+n <- 60
+x <- rnorm(n, mean = 50, sd = 10)
+y <- 3 + 0.8 * x + rnorm(n, mean = 0, sd = 5)
+
+# -- Step 1: fit the model -----------------------------------------------------
+fit <- your_code_goes_here()   # Consult ?lm; regress y on x.
+
+# -- Step 2: read off the slope and R-squared ---------------------------------
+slope <- your_code_goes_here() # Pull the x coefficient out of the coefficients of fit.
+r2    <- your_code_goes_here() # Consult ?summary.lm for the R-squared component.
+
+# -- Report the values to enter into Moodle ----------------------------------
+writeLines(c(
+  paste("Slope of x  :", round(slope, 4)),
+  paste("R-squared   :", round(r2,    4))
+))
+'
+writeLines(gsub("__SEED__", seed, script_template, fixed = TRUE), "cloze_regenerated.R")
+include_supplement("cloze_regenerated.R")
+
+## ── Conceptual schoice blank (optional, same rules as cloze_mixed.Rmd) ───
+opts_c <- c(
+  "A larger R-squared here means x explains a larger share of the variation in y.",
+  "R-squared measures the strength of a causal effect, not just association.",
+  "R-squared always increases as n grows, regardless of the true relationship.",
+  "R-squared close to the slope's own value is a coincidence with no meaning."
+)
+sol_c <- c(TRUE, FALSE, FALSE, FALSE)
+
+types <- c("num", "num", "schoice")
+tols  <- c("0.005", "0.005", "0")
+```
+
+Question
+========
+
+<hr>
+<mark>
+**NOTE:** Right-click and "Save link as" to download
+[**cloze_regenerated.R**](cloze_regenerated.R) into a working directory of
+your choice. Complete every section marked `your_code_goes_here()` and then
+run the script with **Source**. Enter the printed values below. **Do not
+change the seed.**
+</mark>
+<hr>
+
+**Scenario.** <Describe the scenario in plain English; state $n$ and any fixed
+constants explicitly since they appear, version-specific, in the download.>
+Round numeric answers to **four decimal places**.
+
+---
+
+**(a)** Estimated **slope** of `x`:
+
+##ANSWER1##
+
+**(b)** **R-squared** of the fitted model:
+
+##ANSWER2##
+
+**(c)** Which is the correct interpretation of your R-squared?
+
+##ANSWER3##
+
+```{r questionlist, echo=FALSE, results="asis"}
+answerlist(opts_c, markup = "markdown")
+```
+
+Solution
+========
+
+Running the completed script (the seed is fixed inside it) gives:
+
+- **(a)** Slope of `x` $\approx$ `r a$slope` — `coef(fit)["x"]`.
+- **(b)** R-squared $\approx$ `r a$r2` — `summary(fit)$r.squared`.
+- **(c)** A larger R-squared means `x` explains a larger share of the variation
+  in `y` — it does **not** by itself establish causation, and it is not
+  guaranteed to grow with `n`.
+
+```{r solutionlist, echo=FALSE, results="asis"}
+answerlist(ifelse(sol_c, "Correct.", "Incorrect."), markup = "markdown")
+```
+
+Meta-information
+================
+extype: cloze
+exclozetype: `r paste(types, collapse = "|")`
+exsolution: `r paste(c(a$slope, a$r2, mchoice2string(sol_c, single = TRUE)), collapse = "|")`
+extol: `r paste(tols, collapse = "|")`
+exname: <Short descriptive name>
+exshuffle: TRUE

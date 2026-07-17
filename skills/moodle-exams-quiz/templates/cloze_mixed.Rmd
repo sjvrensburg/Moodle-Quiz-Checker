@@ -1,0 +1,128 @@
+```{r data-generation, echo=FALSE, results="hide", message=FALSE, warning=FALSE}
+library(exams)
+
+## FIXED-SEED variant: the same data every version (appropriate for n = 1
+## tests/exams, or a practice item that's deliberately about one unchanging
+## dataset/scenario). For a practice quiz (n > 1) — the common case — prefer
+## `cloze_regenerated.Rmd` instead, which regenerates fresh data (and a
+## fresh downloadable script) every version via rejection sampling. See
+## "Per-version regenerated data" in reference/generators-and-data.md.
+
+## Make the student script (and any CSVs) downloadable from the question.
+include_supplement("cloze_mixed_paired.R")
+# include_supplement("some_data.csv")     # uncomment per data file, if any
+
+## ── Re-derive the answer key ─────────────────────────────────────────────
+## Reproduce EXACTLY what a correct student would run. Use the SAME seed and
+## the SAME constants as the paired .R script so the key matches their output.
+set.seed(4242)
+n     <- 60
+mu    <- 100
+sigma <- 15
+
+x <- rnorm(n, mean = mu, sd = sigma)
+
+ans_mean  <- round(mean(x), 4)              # (a) sample mean
+ans_var   <- round(var(x),  4)              # (b) sample variance (n-1 denom)
+ans_se    <- round(sd(x) / sqrt(n), 4)      # (c) standard error of the mean
+
+## ── Conceptual schoice blanks ────────────────────────────────────────────
+## Each opts_* is a length-4 character vector; the matching sol_* is logical
+## with exactly one TRUE. Build distractors that encode real misconceptions.
+## DO NOT put a `~` inside any option string — it is the cloze separator.
+opts_d <- c(
+  "The standard error of the sample mean is $\\sigma / \\sqrt{n}$; it shrinks as the sample size grows, so larger samples give more precise estimates of $\\mu$.",
+  "The standard error of the sample mean equals the sample standard deviation $s$; it does not depend on the sample size, only on the spread of the data.",
+  "The standard error of the sample mean is $\\sigma^2 / n$; it has the units of a variance, not of the original measurements.",
+  "The standard error of the sample mean grows with $n$, because summing more observations accumulates more sampling variability."
+)
+sol_d <- c(TRUE, FALSE, FALSE, FALSE)
+
+opts_e <- c(
+  "By the Central Limit Theorem, the sampling distribution of $\\bar{X}$ is approximately normal for large $n$ regardless of the shape of the population distribution.",
+  "The sampling distribution of $\\bar{X}$ is normal only if every individual observation is itself drawn from a normal distribution; no approximation holds otherwise.",
+  "The sampling distribution of $\\bar{X}$ becomes more skewed as $n$ increases, because extreme observations dominate the average.",
+  "The sampling distribution of $\\bar{X}$ has the same variance as the population, since averaging does not change the spread."
+)
+sol_e <- c(TRUE, FALSE, FALSE, FALSE)
+
+## ── Assemble the option list and the per-blank solution strings ──────────
+all_opts <- c(opts_d, opts_e)               # order must match the schoice markers
+sol_strings <- c(
+  mchoice2string(sol_d, single = TRUE),
+  mchoice2string(sol_e, single = TRUE)
+)
+
+## ── Build the meta vectors dynamically so they can never drift ───────────
+types <- c("num", "num", "num", "schoice", "schoice")
+tols  <- ifelse(types == "num", "0.005", "0")
+```
+
+Question
+========
+
+<hr>
+<mark>
+**NOTE:** Right-click and "Save link as" to download
+[**cloze_mixed_paired.R**](cloze_mixed_paired.R) into a working directory of
+your choice. Complete every section marked `your_code_goes_here()` and then
+run the script with **Source**.
+</mark>
+<hr>
+
+**Scenario.** You draw a single sample of $n = `r n`$ observations from a
+normal population with mean $\mu = `r mu`$ and standard deviation
+$\sigma = `r sigma`$. The seed `set.seed(4242)` is fixed in the script.
+Round numerical answers to **four decimal places**.
+
+---
+
+**(a)** Report the **sample mean** of `x`.
+
+##ANSWER1##
+
+**(b)** Report the **sample variance** of `x` (the $n - 1$ denominator).
+
+##ANSWER2##
+
+**(c)** Report the **standard error of the sample mean**, $s / \sqrt{n}$.
+
+##ANSWER3##
+
+**(d)** Which statement correctly describes the standard error of the sample mean?
+
+##ANSWER4##
+
+**(e)** Which statement correctly describes the sampling distribution of $\bar{X}$?
+
+##ANSWER5##
+
+```{r questionlist, echo=FALSE, results="asis"}
+answerlist(all_opts, markup = "markdown")
+```
+
+Solution
+========
+
+**(a)** Sample mean $\approx$ `r ans_mean`. In R: `mean(x)`.
+
+**(b)** Sample variance $\approx$ `r ans_var`. In R: `var(x)`, which uses the $n - 1$ denominator.
+
+**(c)** Standard error $= s / \sqrt{n} \approx$ `r ans_se`. In R: `sd(x) / sqrt(length(x))`.
+
+**(d)** The standard error of the mean is $\sigma / \sqrt{n}$ (estimated by $s / \sqrt{n}$); it decreases as $n$ grows.
+
+**(e)** By the Central Limit Theorem, $\bar{X}$ is approximately normal for large $n$ whatever the population shape.
+
+```{r solutionlist, echo=FALSE, results="asis"}
+answerlist(ifelse(c(sol_d, sol_e), "Correct.", "Incorrect."), markup = "markdown")
+```
+
+Meta-information
+================
+extype: cloze
+exclozetype: `r paste(types, collapse = "|")`
+exsolution: `r paste(c(ans_mean, ans_var, ans_se, sol_strings), collapse = "|")`
+extol: `r paste(tols, collapse = "|")`
+exname: Sampling distribution of the mean
+exshuffle: TRUE
