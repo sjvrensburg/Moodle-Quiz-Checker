@@ -72,6 +72,16 @@ pub enum QuestionType {
     Unsupported,
 }
 
+/// A file embedded in the question XML via Moodle's `<file encoding="base64">`
+/// mechanism (e.g. a CSV dataset or script linked from the question text with
+/// an `@@PLUGINFILE@@/name` URL).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuestionFile {
+    pub name: String,
+    /// Base64-encoded file contents, as found in the XML.
+    pub data_base64: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NumericalTolerance {
     pub value: f64,
@@ -118,6 +128,9 @@ pub struct Question {
     // essay
     pub essay_response_format: Option<String>,
     pub essay_lines: Option<u32>,
+
+    // files embedded via @@PLUGINFILE@@ (datasets, scripts, images, ...)
+    pub files: Vec<QuestionFile>,
 }
 
 impl Question {
@@ -145,6 +158,7 @@ impl Question {
             incorrect_feedback: None,
             essay_response_format: None,
             essay_lines: None,
+            files: Vec::new(),
         }
     }
 }

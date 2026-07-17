@@ -39,6 +39,11 @@ export type QuestionType =
 	| "description"
 	| "unsupported";
 
+export interface QuestionFile {
+	name: string;
+	data_base64: string;
+}
+
 export interface NumericalTolerance {
 	value: number;
 	tolerance: number;
@@ -69,6 +74,7 @@ export interface Question {
 	incorrect_feedback: string | null;
 	essay_response_format: string | null;
 	essay_lines: number | null;
+	files: QuestionFile[];
 }
 
 export interface Quiz {

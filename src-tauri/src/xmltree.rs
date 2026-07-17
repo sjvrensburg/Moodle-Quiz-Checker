@@ -41,6 +41,18 @@ impl Node {
         self.attrs.get(name).map(|s| s.as_str())
     }
 
+    /// All descendants (at any depth) with the given tag name.
+    pub fn find_all<'a>(&'a self, name: &str) -> Vec<&'a Node> {
+        let mut out = Vec::new();
+        for child in &self.children {
+            if child.name == name {
+                out.push(child);
+            }
+            out.extend(child.find_all(name));
+        }
+        out
+    }
+
     pub fn own_text(&self) -> String {
         // For a node like <text><![CDATA[...]]></text> the CDATA content lands directly
         // in `text`; for a node with a `<text>` child wrapper, prefer that.

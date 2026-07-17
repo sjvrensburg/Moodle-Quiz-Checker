@@ -205,6 +205,13 @@ localhost HTTP, this requires no SDK — `curl`/`fetch`/`requests` is enough.
 - `category` pseudo-questions in the XML are attached to every question that
   follows them until the next category marker, mirroring Moodle's own
   question-bank import behaviour.
+- **Embedded files**: `<file encoding="base64">` attachments under
+  `<questiontext>` (e.g. CSV datasets or scripts linked via
+  `@@PLUGINFILE@@/name`, common in R/exams-generated quizzes) are extracted,
+  offered as downloadable attachments on the question, and the
+  `@@PLUGINFILE@@` links in the question text are rewritten to same-page
+  anchors pointing at them — since those Moodle-relative URLs can't resolve
+  outside a live Moodle instance.
 
 ## Sample data
 

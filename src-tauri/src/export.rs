@@ -32,6 +32,11 @@ pub fn attempt_to_markdown(quiz: &Quiz, attempt: &Attempt) -> String {
         out.push_str(&format!("## Q{}. {}\n\n", i + 1, question.name));
         out.push_str(&format!("{}\n\n", strip_html(&question.question_text)));
 
+        if !question.files.is_empty() {
+            let names: Vec<&str> = question.files.iter().map(|f| f.name.as_str()).collect();
+            out.push_str(&format!("**Attachments:** {}\n\n", names.join(", ")));
+        }
+
         if let Some(response) = attempt.responses.get(qid) {
             out.push_str(&format!("**Response:** {}\n\n", format_response(&response.value)));
         } else {
@@ -74,6 +79,12 @@ fn format_response(value: &crate::model::ResponseValue) -> String {
 }
 
 fn strip_html(s: &str) -> String {
-    let re = regex::Regex::new(r"<[^>]*>").unwrap();
-    html_escape::decode_html_entities(&re.replace_all(s, "")).trim().to_string()
+    let style_re = regex::Regex::new(r"(?is)<style\b[^>]*>.*?</style\s*>").unwrap();
+    let script_re = regex::Regex::new(r"(?is)<script\b[^>]*>.*?</script\s*>").unwrap();
+    let without_style = style_re.replace_all(s, "");
+    let without_blocks = script_re.replace_all(&without_style, "");
+    let tag_re = regex::Regex::new(r"<[^>]*>").unwrap();
+    html_escape::decode_html_entities(&tag_re.replace_all(&without_blocks, ""))
+        .trim()
+        .to_string()
 }

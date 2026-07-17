@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { sanitizeHtml } from "$lib/sanitize";
+	import { attachmentSlug, downloadAttachment } from "$lib/attachments";
 	import type { Question, QuestionResult, Response, ResponseValue } from "$lib/types";
 	import FeedbackBanner from "./FeedbackBanner.svelte";
 	import MultiChoiceQuestion from "./questions/MultiChoiceQuestion.svelte";
@@ -45,6 +46,21 @@
 	</div>
 
 	<div class="q-text">{@html sanitizeHtml(question.question_text)}</div>
+
+	{#if question.files.length > 0}
+		<div class="attachments">
+			<span class="attachments-label">Attachments:</span>
+			{#each question.files as file (file.name)}
+				<button
+					id={`attachment-${attachmentSlug(file.name)}`}
+					class="btn attachment-btn"
+					onclick={() => downloadAttachment(file)}
+				>
+					📎 {file.name}
+				</button>
+			{/each}
+		</div>
+	{/if}
 
 	<div class="q-body">
 		{#if question.qtype === "multi_choice"}
@@ -110,6 +126,24 @@
 
 	.q-text {
 		margin: 0.75em 0 1.1em;
+	}
+
+	.attachments {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5em;
+		margin-bottom: 1.1em;
+	}
+
+	.attachments-label {
+		font-size: 0.85em;
+		color: var(--mqt-text-muted);
+	}
+
+	.attachment-btn {
+		font-size: 0.85em;
+		padding: 0.35em 0.7em;
 	}
 
 	.q-text :global(p:first-child) {

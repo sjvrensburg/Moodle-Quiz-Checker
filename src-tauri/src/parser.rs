@@ -107,7 +107,44 @@ fn parse_question(node: &Node, qtype_attr: &str) -> Option<Question> {
         QuestionType::Unsupported => return None,
     }
 
+    q.files = node
+        .find_all("file")
+        .into_iter()
+        .filter_map(|f| {
+            let name = f.attr("name")?.to_string();
+            let data_base64 = f.text.trim().to_string();
+            if data_base64.is_empty() {
+                return None;
+            }
+            Some(QuestionFile { name, data_base64 })
+        })
+        .collect();
+
+    if !q.files.is_empty() {
+        rewrite_pluginfile_links(&mut q.question_text, &q.files);
+        if let Some(fb) = q.general_feedback.as_mut() {
+            rewrite_pluginfile_links(fb, &q.files);
+        }
+    }
+
     Some(q)
+}
+
+/// Rewrites Moodle's `@@PLUGINFILE@@/name` placeholder links (which only
+/// resolve inside a live Moodle instance) into local same-page anchors that
+/// point at the matching entry in the question's rendered attachments list.
+fn rewrite_pluginfile_links(text: &mut String, files: &[QuestionFile]) {
+    for file in files {
+        let placeholder = format!("@@PLUGINFILE@@/{}", file.name);
+        let anchor = format!("#attachment-{}", attachment_slug(&file.name));
+        *text = text.replace(&placeholder, &anchor);
+    }
+}
+
+pub fn attachment_slug(name: &str) -> String {
+    name.chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' { c } else { '-' })
+        .collect()
 }
 
 fn parse_answer_node(a: &Node) -> Answer {

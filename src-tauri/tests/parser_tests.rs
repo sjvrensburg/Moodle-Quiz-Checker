@@ -74,6 +74,34 @@ fn matching_parses_pairs() {
 }
 
 #[test]
+fn embedded_pluginfile_is_extracted_and_links_rewritten() {
+    let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="shortanswer">
+    <name><text>Dataset question</text></name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Download <a href="@@PLUGINFILE@@/data.csv">data.csv</a> and report the mean.</p>]]></text>
+      <file name="data.csv" encoding="base64">YSxiCjEsMgo=</file>
+    </questiontext>
+    <generalfeedback format="html"><text></text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <usecase>0</usecase>
+    <answer fraction="100" format="plain_text"><text>1.5</text></answer>
+  </question>
+</quiz>"##;
+
+    let quiz = parse_quiz_xml(xml, "Files", None).unwrap();
+    let q = &quiz.questions[0];
+    assert_eq!(q.files.len(), 1);
+    assert_eq!(q.files[0].name, "data.csv");
+    assert_eq!(q.files[0].data_base64, "YSxiCjEsMgo=");
+    assert!(!q.question_text.contains("@@PLUGINFILE@@"));
+    assert!(q.question_text.contains("#attachment-data.csv"));
+}
+
+#[test]
 fn cloze_parses_embedded_items() {
     let quiz = parse_quiz_xml(&sample_xml(), "Sample", None).unwrap();
     let q = quiz.questions.iter().find(|q| q.qtype == QuestionType::Cloze).unwrap();
