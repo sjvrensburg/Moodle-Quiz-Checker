@@ -53,11 +53,19 @@ cp src-tauri/target/release/mqt-cli ~/bin/mqt-cli
 
 ## Claude Code skill
 
-A `moodle-quiz-tester` skill (`~/.claude/skills/moodle-quiz-tester/`) teaches
-Claude Code how to drive `mqt-cli`/the agent HTTP API to validate a Moodle
-XML quiz — parse fidelity, grading correctness, embedded attachments — plus
-an authoring-tool-independent quiz quality checklist. Invoke it with the
-skill name when reviewing a Moodle XML export, from this repo or any other.
+The repo ships a `moodle-quiz-tester` skill under [`skills/moodle-quiz-tester/`](skills/moodle-quiz-tester/)
+that teaches Claude Code (or any agent that reads it) how to drive
+`mqt-cli`/the agent HTTP API to validate a Moodle XML quiz: the mechanical
+gates (`lint` → `autotest` → `compare`), an adversarial-student review
+protocol, a distractor/feedback rubric, and a structured review-report
+template. Install it by copying it into your skills directory:
+
+```bash
+cp -r skills/moodle-quiz-tester ~/.claude/skills/
+```
+
+Then invoke it by name when reviewing a Moodle XML export, from this repo or
+any other.
 
 ## Project layout
 
@@ -72,12 +80,14 @@ src-tauri/           Rust backend (Tauri app, CLI binary, core library)
   src/server.rs           Localhost-only agent HTTP API (Axum)
   src/lib.rs               Tauri commands + app wiring
   src/main.rs                Desktop app entry point
-  src/bin/cli.rs              `mqt-cli` headless CLI entry point
-  tests/                        Parser + grading unit tests
+  src/quality.rs              Quality tooling: lint, autotest, compare, chance baseline
+  src/bin/cli.rs               `mqt-cli` headless CLI entry point
+  tests/                        Parser + grading + quality unit tests
 src/                  SvelteKit frontend (SPA, adapter-static)
   routes/               Quiz list, quiz detail, attempt (take + review)
   lib/components/         Question renderers per Moodle question type
 samples/              Sample Moodle XML export used by the parser tests
+skills/               Claude Code skill for agent-driven quiz validation
 ```
 
 ## Building & running
@@ -160,6 +170,35 @@ mqt export <attempt-id> --format markdown
 mqt serve --port 4173
 ```
 
+### Quality tooling
+
+Three pre-import gates plus a reviewer export, designed for CI / agent
+pipelines (each gate exits non-zero on failure; add `--json` for
+machine-readable reports):
+
+```bash
+# Gate 1: format lint — grading traps, missing attachments, malformed cloze,
+# unsupported question types, and a random-guess score baseline per question.
+mqt lint quiz.xml
+
+# Gate 2: answer-key round-trip — synthesizes the intended-correct response
+# for every auto-gradeable question and asserts it grades 100%, plus a
+# deliberately wrong response and asserts it doesn't.
+mqt autotest --file quiz.xml          # or: mqt autotest <quiz-id>
+
+# Gate 3: randomised versions actually vary — flags answer-key columns that
+# are constant across every version of an item.
+mqt compare bank.xml                  # one file: versions grouped by question name
+mqt compare v1.xml v2.xml v3.xml      # several files: aligned by position
+
+# Reviewer copy: every question with its answer key, weights, and feedback
+# inline, for human moderation/sign-off.
+mqt export-quiz <quiz-id> > reviewer-copy.md
+```
+
+`mqt load` also now warns on stderr about any question it had to drop because
+of an unsupported type, instead of dropping it silently.
+
 ## The agent HTTP API
 
 The same server can also be started from inside the desktop app (sidebar
@@ -182,6 +221,11 @@ from the network.
 | `POST /attempts/:id/finish`                                            | Grade the attempt and lock it in               |
 | `GET  /attempts/:id/export.json`                                        | JSON export                                     |
 | `GET  /attempts/:id/export.md`                                           | Markdown export                                  |
+| `POST /lint` `{xml}`                                                       | Lint a Moodle XML export (nothing persisted)      |
+| `POST /autotest` `{xml}`                                                    | Answer-key round-trip test on raw XML              |
+| `GET  /quizzes/:id/autotest`                                                 | Answer-key round-trip test on an imported quiz      |
+| `POST /compare` `{sources: [{label, xml}], group_by_name?}`                   | Multi-version answer-key diff                        |
+| `GET  /quizzes/:id/reviewer.md`                                                | Reviewer copy (all questions with answer keys)        |
 
 `value` in a submit-response call matches the Rust `ResponseValue` enum
 (serialized untagged): a plain string for short-answer/numerical/essay, an

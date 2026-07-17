@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Attempt, Quiz, ResponseValue } from "./types";
+import type { Attempt, AutotestReport, LintReport, Quiz, ResponseValue } from "./types";
 
 export const api = {
 	importQuizXml(xml: string, name: string, sourceFile?: string): Promise<Quiz> {
@@ -37,6 +37,15 @@ export const api = {
 	},
 	exportMarkdown(attemptId: string): Promise<string> {
 		return invoke("export_markdown", { attemptId });
+	},
+	lintXml(xml: string): Promise<LintReport> {
+		return invoke("lint_xml", { xml });
+	},
+	autotestQuiz(quizId: string): Promise<AutotestReport> {
+		return invoke("autotest_quiz", { quizId });
+	},
+	exportQuizMarkdown(quizId: string): Promise<string> {
+		return invoke("export_quiz_markdown", { quizId });
 	},
 	startAgentServer(port: number): Promise<string> {
 		return invoke("start_agent_server", { port });

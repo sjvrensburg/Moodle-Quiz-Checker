@@ -62,6 +62,48 @@ enum Command {
         #[arg(long, default_value_t = 4173)]
         port: u16,
     },
+    /// Lint a Moodle XML file: format errors, grading traps, missing attachments,
+    /// unsupported question types, and a random-guess score baseline.
+    /// Exits non-zero if any errors are found.
+    Lint {
+        path: PathBuf,
+        /// Emit the full report as JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Answer-key round-trip test: submit the intended-correct answer for every
+    /// auto-gradeable question and assert full marks; also submit a deliberately
+    /// wrong answer and assert the grader discriminates. Exits non-zero on failure.
+    Autotest {
+        /// Quiz id of an already-imported quiz.
+        #[arg(required_unless_present = "file", conflicts_with = "file")]
+        quiz_id: Option<String>,
+        /// Test a Moodle XML file directly without importing it.
+        #[arg(long)]
+        file: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Compare randomised versions of the same items and flag answer keys that
+    /// never vary. Pass several files (positional alignment) or one file
+    /// containing all versions (grouped by question name). Exits non-zero when
+    /// any constant answer column is flagged.
+    Compare {
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+        /// Group versions by question name instead of by position (default for a single file).
+        #[arg(long)]
+        group_by_name: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Export a reviewer document for a quiz: every question with its answer
+    /// key, weights, tolerances, and feedback inline.
+    ExportQuiz {
+        quiz_id: String,
+        #[arg(long, value_enum, default_value = "markdown")]
+        format: ExportFormat,
+    },
 }
 
 #[derive(Clone, clap::ValueEnum)]
@@ -82,7 +124,11 @@ fn main() -> anyhow::Result<()> {
             let name = name.unwrap_or_else(|| {
                 path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Untitled quiz".into())
             });
-            let quiz = app.import_quiz(&xml, &name, Some(path.to_string_lossy().to_string()))?;
+            let (quiz, warnings) =
+                app.import_quiz_with_warnings(&xml, &name, Some(path.to_string_lossy().to_string()))?;
+            for w in &warnings {
+                eprintln!("warning: {w}");
+            }
             println!("Imported '{}' ({} questions), id={}", quiz.name, quiz.questions.len(), quiz.id);
         }
         Command::List => {
@@ -120,6 +166,60 @@ fn main() -> anyhow::Result<()> {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async move { moodle_quiz_tester_lib::server::run(app, port).await })?;
         }
+        Command::Lint { path, json } => {
+            let xml = std::fs::read_to_string(&path)?;
+            let report = App::lint_xml(&xml)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print!("{}", report.to_text());
+            }
+            if report.errors > 0 {
+                std::process::exit(1);
+            }
+        }
+        Command::Autotest { quiz_id, file, json } => {
+            let report = match (quiz_id, file) {
+                (_, Some(path)) => {
+                    let xml = std::fs::read_to_string(&path)?;
+                    App::autotest_xml(&xml)?
+                }
+                (Some(id), None) => app.autotest_quiz(&id)?,
+                (None, None) => unreachable!("clap enforces quiz_id or --file"),
+            };
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print!("{}", report.to_text());
+            }
+            if !report.pass {
+                std::process::exit(1);
+            }
+        }
+        Command::Compare { files, group_by_name, json } => {
+            let mut sources = Vec::new();
+            for path in &files {
+                let xml = std::fs::read_to_string(path)?;
+                let label = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                sources.push((label, xml));
+            }
+            let report = App::compare_xml(&sources, group_by_name)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print!("{}", report.to_text());
+            }
+            if report.flagged_items > 0 {
+                std::process::exit(1);
+            }
+        }
+        Command::ExportQuiz { quiz_id, format } => match format {
+            ExportFormat::Json => {
+                let quiz = app.get_quiz(&quiz_id)?;
+                println!("{}", serde_json::to_string_pretty(&quiz)?);
+            }
+            ExportFormat::Markdown => println!("{}", app.export_quiz_markdown(&quiz_id)?),
+        },
     }
 
     Ok(())

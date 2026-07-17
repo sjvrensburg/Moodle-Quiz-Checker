@@ -78,10 +78,10 @@
     <single>false</single>
     <shuffleanswers>true</shuffleanswers>
     <answernumbering>abc</answernumbering>
-    <answer fraction="25" format="html"><text><![CDATA[2]]></text></answer>
-    <answer fraction="25" format="html"><text><![CDATA[3]]></text></answer>
-    <answer fraction="-25" format="html"><text><![CDATA[4]]></text></answer>
-    <answer fraction="25" format="html"><text><![CDATA[5]]></text></answer>
+    <answer fraction="33.33333" format="html"><text><![CDATA[2]]></text></answer>
+    <answer fraction="33.33333" format="html"><text><![CDATA[3]]></text></answer>
+    <answer fraction="-33.33333" format="html"><text><![CDATA[4]]></text></answer>
+    <answer fraction="33.33333" format="html"><text><![CDATA[5]]></text></answer>
   </question>
 
   <question type="truefalse">

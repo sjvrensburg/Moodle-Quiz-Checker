@@ -103,6 +103,52 @@ export interface QuestionResult {
 	state: GradeState;
 }
 
+export type LintSeverity = "error" | "warning" | "info";
+
+export interface LintFinding {
+	code: string;
+	severity: LintSeverity;
+	question: string | null;
+	message: string;
+}
+
+export interface ChanceEntry {
+	question: string;
+	qtype: QuestionType;
+	expected_fraction: number | null;
+}
+
+export interface LintReport {
+	question_count: number;
+	errors: number;
+	warnings: number;
+	infos: number;
+	findings: LintFinding[];
+	chance: ChanceEntry[];
+	chance_quiz_expected: number | null;
+}
+
+export interface AutotestQuestionResult {
+	question_id: string;
+	name: string;
+	qtype: QuestionType;
+	correct_fraction: number | null;
+	wrong_fraction: number | null;
+	pass: boolean;
+	skipped: boolean;
+	notes: string[];
+}
+
+export interface AutotestReport {
+	quiz_name: string;
+	questions: AutotestQuestionResult[];
+	tested: number;
+	passed: number;
+	failed: number;
+	skipped: number;
+	pass: boolean;
+}
+
 export interface Attempt {
 	id: string;
 	quiz_id: string;

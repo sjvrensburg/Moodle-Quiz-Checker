@@ -19,12 +19,58 @@ impl App {
     }
 
     pub fn import_quiz(&self, xml: &str, name: &str, source_file: Option<String>) -> Result<Quiz> {
-        let quiz = parser::parse_quiz_xml(xml, name, source_file).map_err(|e| anyhow!(e))?;
+        self.import_quiz_with_warnings(xml, name, source_file).map(|(quiz, _)| quiz)
+    }
+
+    /// Import, also returning parse warnings (e.g. questions dropped because
+    /// their type is unsupported) so callers can surface them instead of
+    /// letting questions vanish silently.
+    pub fn import_quiz_with_warnings(
+        &self,
+        xml: &str,
+        name: &str,
+        source_file: Option<String>,
+    ) -> Result<(Quiz, Vec<String>)> {
+        let (quiz, warnings) =
+            parser::parse_quiz_xml_with_warnings(xml, name, source_file).map_err(|e| anyhow!(e))?;
         if quiz.questions.is_empty() {
             return Err(anyhow!("No supported questions found in the XML file"));
         }
         self.storage.save_quiz(&quiz)?;
-        Ok(quiz)
+        Ok((quiz, warnings))
+    }
+
+    /// Lint a Moodle XML export (pre-import; nothing is persisted).
+    pub fn lint_xml(xml: &str) -> Result<crate::quality::LintReport> {
+        crate::quality::lint_quiz_xml(xml).map_err(|e| anyhow!(e))
+    }
+
+    /// Answer-key round-trip test for an already-imported quiz.
+    pub fn autotest_quiz(&self, quiz_id: &str) -> Result<crate::quality::AutotestReport> {
+        let quiz = self.get_quiz(quiz_id)?;
+        Ok(crate::quality::autotest_quiz(&quiz))
+    }
+
+    /// Answer-key round-trip test straight from XML (nothing is persisted).
+    pub fn autotest_xml(xml: &str) -> Result<crate::quality::AutotestReport> {
+        let quiz = parser::parse_quiz_xml(xml, "autotest", None).map_err(|e| anyhow!(e))?;
+        Ok(crate::quality::autotest_quiz(&quiz))
+    }
+
+    /// Multi-version answer-key comparison. Each entry is (label, xml).
+    pub fn compare_xml(sources: &[(String, String)], group_by_name: bool) -> Result<crate::quality::CompareReport> {
+        let mut quizzes = Vec::new();
+        for (label, xml) in sources {
+            let quiz = parser::parse_quiz_xml(xml, label, None).map_err(|e| anyhow!("{label}: {e}"))?;
+            quizzes.push(quiz);
+        }
+        Ok(crate::quality::compare_quizzes(&quizzes, group_by_name))
+    }
+
+    /// Reviewer document: all questions with answer keys inline.
+    pub fn export_quiz_markdown(&self, quiz_id: &str) -> Result<String> {
+        let quiz = self.get_quiz(quiz_id)?;
+        Ok(crate::export::quiz_to_markdown(&quiz))
     }
 
     pub fn list_quizzes(&self) -> Result<Vec<Quiz>> {

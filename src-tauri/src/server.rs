@@ -40,6 +40,11 @@ pub fn build_router(app: SharedApp) -> Router {
         .route("/attempts/:attempt_id/finish", post(finish_attempt))
         .route("/attempts/:attempt_id/export.json", get(export_json))
         .route("/attempts/:attempt_id/export.md", get(export_markdown))
+        .route("/lint", post(lint))
+        .route("/autotest", post(autotest_xml))
+        .route("/quizzes/:quiz_id/autotest", get(autotest_quiz))
+        .route("/compare", post(compare))
+        .route("/quizzes/:quiz_id/reviewer.md", get(export_quiz_markdown))
         .layer(CorsLayer::permissive())
         .with_state(app)
 }
@@ -167,6 +172,61 @@ async fn export_json(State(app): State<SharedApp>, Path(attempt_id): Path<String
 
 async fn export_markdown(State(app): State<SharedApp>, Path(attempt_id): Path<String>) -> AxumResponse {
     match app.export_markdown(&attempt_id) {
+        Ok(md) => ([("content-type", "text/markdown; charset=utf-8")], md).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct XmlBody {
+    xml: String,
+}
+
+async fn lint(Json(body): Json<XmlBody>) -> AxumResponse {
+    match App::lint_xml(&body.xml) {
+        Ok(report) => Json(report).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+async fn autotest_xml(Json(body): Json<XmlBody>) -> AxumResponse {
+    match App::autotest_xml(&body.xml) {
+        Ok(report) => Json(report).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+async fn autotest_quiz(State(app): State<SharedApp>, Path(quiz_id): Path<String>) -> AxumResponse {
+    match app.autotest_quiz(&quiz_id) {
+        Ok(report) => Json(report).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct CompareBody {
+    /// Versions to compare: [{label, xml}, ...].
+    sources: Vec<CompareSource>,
+    #[serde(default)]
+    group_by_name: bool,
+}
+
+#[derive(Deserialize)]
+struct CompareSource {
+    label: String,
+    xml: String,
+}
+
+async fn compare(Json(body): Json<CompareBody>) -> AxumResponse {
+    let sources: Vec<(String, String)> = body.sources.into_iter().map(|s| (s.label, s.xml)).collect();
+    match App::compare_xml(&sources, body.group_by_name) {
+        Ok(report) => Json(report).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+async fn export_quiz_markdown(State(app): State<SharedApp>, Path(quiz_id): Path<String>) -> AxumResponse {
+    match app.export_quiz_markdown(&quiz_id) {
         Ok(md) => ([("content-type", "text/markdown; charset=utf-8")], md).into_response(),
         Err(e) => err_response(e),
     }

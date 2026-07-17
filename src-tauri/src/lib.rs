@@ -3,6 +3,7 @@ pub mod export;
 pub mod grading;
 pub mod model;
 pub mod parser;
+pub mod quality;
 pub mod server;
 pub mod storage;
 pub mod xmltree;
@@ -88,6 +89,21 @@ fn export_markdown(state: State<AppState>, attempt_id: String) -> Result<String,
 }
 
 #[tauri::command]
+fn lint_xml(xml: String) -> Result<quality::LintReport, String> {
+    App::lint_xml(&xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn autotest_quiz(state: State<AppState>, quiz_id: String) -> Result<quality::AutotestReport, String> {
+    state.0.autotest_quiz(&quiz_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn export_quiz_markdown(state: State<AppState>, quiz_id: String) -> Result<String, String> {
+    state.0.export_quiz_markdown(&quiz_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn start_agent_server(state: State<AppState>, port: u16) -> Result<String, String> {
     let app = state.0.clone();
     std::thread::spawn(move || {
@@ -124,6 +140,9 @@ pub fn run() {
             list_attempts,
             export_json,
             export_markdown,
+            lint_xml,
+            autotest_quiz,
+            export_quiz_markdown,
             start_agent_server,
         ])
         .run(tauri::generate_context!())

@@ -12,6 +12,17 @@ use regex::Regex;
 use std::sync::OnceLock;
 
 pub fn parse_quiz_xml(xml: &str, name: &str, source_file: Option<String>) -> Result<Quiz, String> {
+    parse_quiz_xml_with_warnings(xml, name, source_file).map(|(quiz, _)| quiz)
+}
+
+/// Like [`parse_quiz_xml`], but also reports what was *not* imported: every
+/// question whose `type` this parser doesn't support is returned as a warning
+/// (naming the question and its type) instead of being dropped silently.
+pub fn parse_quiz_xml_with_warnings(
+    xml: &str,
+    name: &str,
+    source_file: Option<String>,
+) -> Result<(Quiz, Vec<String>), String> {
     let root = xmltree::parse(xml)?;
     let quiz_root = if root.name == "quiz" {
         &root
@@ -20,6 +31,7 @@ pub fn parse_quiz_xml(xml: &str, name: &str, source_file: Option<String>) -> Res
     };
 
     let mut questions = Vec::new();
+    let mut warnings = Vec::new();
     let mut current_category: Option<String> = None;
 
     for q_node in quiz_root.children_named("question") {
@@ -32,16 +44,24 @@ pub fn parse_quiz_xml(xml: &str, name: &str, source_file: Option<String>) -> Res
         if let Some(mut question) = parse_question(q_node, &qtype_attr) {
             question.category = current_category.clone();
             questions.push(question);
+        } else {
+            let qname = q_node.text_of("name").unwrap_or_else(|| "(unnamed)".to_string());
+            warnings.push(format!(
+                "Dropped question '{qname}': unsupported type '{qtype_attr}' (supported: multichoice, truefalse, shortanswer, numerical, matching, cloze, essay, description)"
+            ));
         }
     }
 
-    Ok(Quiz {
-        id: uuid::Uuid::new_v4().to_string(),
-        name: name.to_string(),
-        source_file,
-        questions,
-        imported_at: chrono::Utc::now().to_rfc3339(),
-    })
+    Ok((
+        Quiz {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            source_file,
+            questions,
+            imported_at: chrono::Utc::now().to_rfc3339(),
+        },
+        warnings,
+    ))
 }
 
 fn text_format_of(node: &Node, child: &str) -> TextFormat {
