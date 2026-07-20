@@ -207,6 +207,11 @@ mqt compare v1.xml v2.xml v3.xml      # several files: aligned by position
 # Reviewer copy: every question with its answer key, weights, and feedback
 # inline, for human moderation/sign-off.
 mqt export-quiz <quiz-id> > reviewer-copy.md
+
+# Visual math check: render one question's raw HTML to a standalone,
+# screenshot-able file (MathJax wired up via CDN) — complements lint's
+# textual-only math-delimiters rule for LaTeX failures it can't catch.
+mqt render-question <quiz-id> <question-id> > question.html
 ```
 
 `mqt load` also now warns on stderr about any question it had to drop because
@@ -239,6 +244,7 @@ from the network.
 | `GET  /quizzes/:id/autotest`                                                 | Answer-key round-trip test on an imported quiz      |
 | `POST /compare` `{sources: [{label, xml}], group_by_name?}`                   | Multi-version answer-key diff                        |
 | `GET  /quizzes/:id/reviewer.md`                                                | Reviewer copy (all questions with answer keys)        |
+| `GET  /quizzes/:id/questions/:qid/render.html`                                 | Standalone HTML render of one question, for a visual math check |
 
 `value` in a submit-response call matches the Rust `ResponseValue` enum
 (serialized untagged): a plain string for short-answer/numerical/essay, an
@@ -272,9 +278,11 @@ localhost HTTP, this requires no SDK — `curl`/`fetch`/`requests` is enough.
 
 ## Moodle fidelity notes
 
-- Question text and feedback are stored and rendered as the raw HTML Moodle
-  exports (from `<text><![CDATA[...]]></text>`), sanitized client-side with
-  DOMPurify before rendering.
+- Question text and feedback are stored as the raw HTML Moodle exports (from
+  `<text><![CDATA[...]]></text>`), sanitized before rendering wherever it's
+  displayed — client-side with DOMPurify in the Svelte frontend, server-side
+  with the `ammonia` crate (same tag/attribute allowlist) for the standalone
+  `render-question` HTML export.
 - Multichoice: single-response takes the fraction of the selected answer;
   multiple-response sums the (possibly negative) fraction of every selected
   answer and clamps to `[0, 1]`, matching Moodle's per-choice weighting model.

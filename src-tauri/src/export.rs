@@ -2,7 +2,9 @@
 //! quiz-level reviewer document (all questions with answer keys inline).
 
 use crate::model::{Attempt, GradeState, Question, QuestionType, Quiz};
+use ammonia::Builder;
 use serde_json::json;
+use std::collections::HashSet;
 
 pub fn attempt_to_json(quiz: &Quiz, attempt: &Attempt) -> serde_json::Value {
     json!({
@@ -187,6 +189,114 @@ pub fn quiz_to_markdown(quiz: &Quiz) -> String {
         out.push_str("---\n\n");
     }
     out
+}
+
+/// Same allowlist as the frontend's `sanitizeHtml` (`src/lib/sanitize.ts`,
+/// DOMPurify-based) so Moodle-authored HTML gets equivalent treatment
+/// whether it's rendered in the Svelte webview or in this standalone export.
+fn sanitize_moodle_html(html: &str) -> String {
+    Builder::default()
+        .tags(HashSet::from([
+            "p", "br", "b", "i", "em", "strong", "u", "s", "sub", "sup", "span", "div", "ul", "ol", "li", "a", "img",
+            "table", "thead", "tbody", "tr", "td", "th", "blockquote", "code", "pre", "h1", "h2", "h3", "h4", "h5",
+            "h6", "hr",
+        ]))
+        .generic_attributes(HashSet::from([
+            "href", "src", "alt", "title", "class", "style", "target", "colspan", "rowspan",
+        ]))
+        .clean(html)
+        .to_string()
+}
+
+/// Renders a single question's HTML (question text, answers, feedback —
+/// sanitized but otherwise unstripped, unlike [`quiz_to_markdown`]) into a
+/// standalone HTML document with the MathJax runtime wired up, so it can be
+/// opened in a browser (or screenshotted by a browser-automation tool) to
+/// visually confirm math actually renders. This is a text-vs-visual
+/// complement to the `lint` gate's `math-delimiters` rule, which can only
+/// catch the one known textual failure mode (literal `\[...\]`/`\(...\)`
+/// display-math delimiters that Moodle's filter strips) and can't tell
+/// whether other LaTeX is malformed or whether the exams→HTML conversion
+/// step introduced a broken form not present in the source.
+///
+/// Moodle HTML is sanitized (not merely escaped) before embedding — this
+/// document is served directly by the agent HTTP server (`GET
+/// /quizzes/:id/questions/:qid/render.html`) as well as written to disk by
+/// the CLI, so untrusted question/answer/feedback HTML must not be able to
+/// run script in either context.
+///
+/// MathJax is loaded from a CDN rather than vendored, so viewing the
+/// rendered result requires the browser opening the file to have network
+/// access — generating the file itself stays fully offline.
+pub fn question_to_standalone_html(q: &Question) -> String {
+    let mut body = String::new();
+    body.push_str(&format!(
+        "<h1>{}</h1>\n<p class=\"meta\">Type: {} &middot; Marks: {:.1}</p>\n",
+        html_escape::encode_text(&q.name),
+        qtype_label(q.qtype),
+        q.default_grade
+    ));
+    body.push_str("<section class=\"question-text\">\n");
+    body.push_str(&sanitize_moodle_html(&q.question_text));
+    body.push_str("\n</section>\n");
+
+    if !q.answers.is_empty() {
+        body.push_str("<section class=\"answers\">\n<h2>Options / accepted answers</h2>\n<ul>\n");
+        for a in &q.answers {
+            body.push_str(&format!(
+                "<li><span class=\"fraction\">({:.0}%)</span> {}</li>\n",
+                a.fraction,
+                sanitize_moodle_html(&a.text)
+            ));
+        }
+        body.push_str("</ul>\n</section>\n");
+    }
+
+    for (label, fb) in [
+        ("General feedback", &q.general_feedback),
+        ("If correct", &q.correct_feedback),
+        ("If partially correct", &q.partially_correct_feedback),
+        ("If incorrect", &q.incorrect_feedback),
+    ] {
+        if let Some(fb) = fb {
+            body.push_str(&format!(
+                "<section class=\"feedback\"><h3>{label}</h3>\n{}\n</section>\n",
+                sanitize_moodle_html(fb)
+            ));
+        }
+    }
+
+    format!(
+        r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{title}</title>
+<script>
+  window.MathJax = {{
+    tex: {{
+      inlineMath: [['\\(', '\\)'], ['$', '$']],
+      displayMath: [['\\[', '\\]'], ['$$', '$$']]
+    }}
+  }};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+<style>
+  body {{ font-family: system-ui, sans-serif; max-width: 50rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }}
+  .meta {{ color: #666; }}
+  .answers ul {{ padding-left: 1.2rem; }}
+  .fraction {{ color: #888; font-size: 0.9em; }}
+  section {{ margin-top: 1.5rem; }}
+</style>
+</head>
+<body>
+{body}
+</body>
+</html>
+"#,
+        title = html_escape::encode_text(&q.name),
+        body = body
+    )
 }
 
 fn render_answer_table(out: &mut String, q: &Question) {

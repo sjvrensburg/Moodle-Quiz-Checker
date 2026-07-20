@@ -143,6 +143,24 @@ answer keys inline):
 mqt-cli --db "$MQT_TEST_DB" export-quiz <quiz-id> > reviewer-copy.md
 ```
 
+### Visual math check
+
+`lint`'s `math-delimiters` rule only catches one known textual failure mode
+(literal `\[...\]`/`\(...\)` display-math delimiters Moodle's filter strips).
+It can't tell whether other LaTeX is malformed, or whether a broken form was
+introduced by an upstream conversion step (e.g. R/exams → HTML) even though
+the source looks clean. When a lint flag is ambiguous, render the question
+and actually look at it:
+
+```bash
+mqt-cli --db "$MQT_TEST_DB" render-question <quiz-id> <question-id> > /tmp/q.html
+```
+
+Open `/tmp/q.html` in a browser (or screenshot it with a browser-automation
+tool) — it's a standalone document with MathJax wired up via CDN, so this
+step needs network access even though everything else in this workflow is
+offline.
+
 ## Manual attempt driving (debugging a specific question)
 
 ```bash
@@ -178,6 +196,7 @@ only). All quality tooling is also exposed:
 - `GET /quizzes/:id/autotest` → AutotestReport for an imported quiz
 - `POST /compare` `{sources: [{label, xml}, ...], group_by_name?}` → CompareReport
 - `GET /quizzes/:id/reviewer.md` → reviewer copy with answer keys
+- `GET /quizzes/:id/questions/:qid/render.html` → standalone HTML render of one question, for a visual math check
 
 See the repo README for the full attempt-driving endpoint table.
 

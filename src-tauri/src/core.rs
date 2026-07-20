@@ -73,6 +73,19 @@ impl App {
         Ok(crate::export::quiz_to_markdown(&quiz))
     }
 
+    /// Standalone, screenshot-able HTML render of one question — for visual
+    /// confirmation that math actually renders (see `quality::lint_quiz_xml`'s
+    /// `math-delimiters` rule, which is textual-only).
+    pub fn render_question_html(&self, quiz_id: &str, question_id: &str) -> Result<String> {
+        let quiz = self.get_quiz(quiz_id)?;
+        let question = quiz
+            .questions
+            .iter()
+            .find(|q| q.id == question_id)
+            .ok_or_else(|| anyhow!("Question not found: {question_id}"))?;
+        Ok(crate::export::question_to_standalone_html(question))
+    }
+
     pub fn list_quizzes(&self) -> Result<Vec<Quiz>> {
         self.storage.list_quizzes()
     }

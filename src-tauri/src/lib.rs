@@ -104,6 +104,11 @@ fn export_quiz_markdown(state: State<AppState>, quiz_id: String) -> Result<Strin
 }
 
 #[tauri::command]
+fn render_question_html(state: State<AppState>, quiz_id: String, question_id: String) -> Result<String, String> {
+    state.0.render_question_html(&quiz_id, &question_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn start_agent_server(state: State<AppState>, port: u16) -> Result<String, String> {
     let app = state.0.clone();
     std::thread::spawn(move || {
@@ -143,6 +148,7 @@ pub fn run() {
             lint_xml,
             autotest_quiz,
             export_quiz_markdown,
+            render_question_html,
             start_agent_server,
         ])
         .run(tauri::generate_context!())
