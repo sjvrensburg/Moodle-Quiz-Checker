@@ -278,9 +278,11 @@ localhost HTTP, this requires no SDK — `curl`/`fetch`/`requests` is enough.
 
 ## Moodle fidelity notes
 
-- Question text and feedback are stored and rendered as the raw HTML Moodle
-  exports (from `<text><![CDATA[...]]></text>`), sanitized client-side with
-  DOMPurify before rendering.
+- Question text and feedback are stored as the raw HTML Moodle exports (from
+  `<text><![CDATA[...]]></text>`), sanitized before rendering wherever it's
+  displayed — client-side with DOMPurify in the Svelte frontend, server-side
+  with the `ammonia` crate (same tag/attribute allowlist) for the standalone
+  `render-question` HTML export.
 - Multichoice: single-response takes the fraction of the selected answer;
   multiple-response sums the (possibly negative) fraction of every selected
   answer and clamps to `[0, 1]`, matching Moodle's per-choice weighting model.
