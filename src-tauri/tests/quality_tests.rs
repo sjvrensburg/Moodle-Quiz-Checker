@@ -105,6 +105,70 @@ fn lint_flags_shared_attachment() {
 }
 
 #[test]
+fn lint_flags_code_underscore_risk() {
+    let xml = wrap_quiz(
+        r#"<question type="essay">
+            <name><text>code question</text></name>
+            <questiontext format="html"><text><![CDATA[Compute <code>sd(fold_errors) / sqrt(K)</code>]]></text></questiontext>
+        </question>"#,
+    );
+    let report = lint_quiz_xml(&xml).unwrap();
+    assert!(has_finding(&report, "code-underscore-risk"));
+    // Plain prose underscores outside <code>/<pre> shouldn't trigger it.
+    let xml_no_code = wrap_quiz(
+        r#"<question type="essay">
+            <name><text>plain question</text></name>
+            <questiontext format="html"><text>No code spans here, just text_with_underscore</text></questiontext>
+        </question>"#,
+    );
+    let report_no_code = lint_quiz_xml(&xml_no_code).unwrap();
+    assert!(!has_finding(&report_no_code, "code-underscore-risk"));
+}
+
+#[test]
+fn lint_flags_possible_answer_leak_across_questions() {
+    // Q1's correct R² answer (0.9649 / 96.5%) verbatim in every option of Q2
+    // — the "next question spoils this one's answer" trap.
+    let xml = wrap_quiz(
+        r#"<question type="numerical">
+            <name><text>compute r2</text></name>
+            <questiontext format="html"><text>Compute R^2.</text></questiontext>
+            <answer fraction="100"><text>0.9649</text><tolerance>0.0001</tolerance></answer>
+        </question>
+        <question type="multichoice">
+            <name><text>interpret r2</text></name>
+            <questiontext format="html"><text>What does R^2 mean?</text></questiontext>
+            <single>true</single>
+            <answer fraction="100"><text>R^2=96.5% means the model explains 96.5% of variance</text></answer>
+            <answer fraction="0"><text>R^2=96.5% means residuals are 96.5% of variance</text></answer>
+        </question>"#,
+    );
+    let report = lint_quiz_xml(&xml).unwrap();
+    assert!(has_finding(&report, "possible-answer-leak"), "{}", report.to_text());
+    let f = report.findings.iter().find(|f| f.code == "possible-answer-leak").unwrap();
+    assert_eq!(f.question.as_deref(), Some("interpret r2"));
+}
+
+#[test]
+fn lint_does_not_flag_unrelated_recurring_numbers_as_leak() {
+    // A trivial/short number recurring by coincidence shouldn't trip the heuristic.
+    let xml = wrap_quiz(
+        r#"<question type="numerical">
+            <name><text>q1</text></name>
+            <questiontext format="html"><text>a=1, b=5</text></questiontext>
+            <answer fraction="100"><text>5</text><tolerance>0</tolerance></answer>
+        </question>
+        <question type="numerical">
+            <name><text>q2</text></name>
+            <questiontext format="html"><text>Unrelated: there are 5 apples</text></questiontext>
+            <answer fraction="100"><text>3</text><tolerance>0</tolerance></answer>
+        </question>"#,
+    );
+    let report = lint_quiz_xml(&xml).unwrap();
+    assert!(!has_finding(&report, "possible-answer-leak"), "{}", report.to_text());
+}
+
+#[test]
 fn lint_reports_unsupported_type_as_error() {
     let xml = wrap_quiz(
         r#"<question type="ddwtos">
