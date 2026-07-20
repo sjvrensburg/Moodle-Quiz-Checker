@@ -191,7 +191,10 @@ machine-readable reports):
 
 ```bash
 # Gate 1: format lint — grading traps, missing attachments, malformed cloze,
-# unsupported question types, and a random-guess score baseline per question.
+# unsupported question types, cross-question answer leakage (a later
+# question's text/options states an earlier question's correct answer
+# verbatim), code-span underscores some Moodle sites' filters mangle, and a
+# random-guess score baseline per question.
 mqt lint quiz.xml
 
 # Gate 2: answer-key round-trip — synthesizes the intended-correct response

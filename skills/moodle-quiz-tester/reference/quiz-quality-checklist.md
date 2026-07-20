@@ -86,7 +86,14 @@ to a *different* question. State any modified setup via its own
 self-contained description, not by cross-referencing another question's
 numbered assumptions or answer. Read every question against every other
 question (and against any shared formula sheet/reference material) before
-publishing.
+publishing. A recurring concrete case: an "interpret your result" question
+whose every option restates the correct numeric answer to the preceding
+"compute the value" question (e.g. every interpretation option for
+"what does R² mean?" states "R²=96.5%", which was also the answer to
+"compute R²"). `lint`'s `possible-answer-leak` rule catches the common
+verbatim-numeric-value form of this automatically — but it's a heuristic
+(numeric literals only, no natural-language paraphrase detection), so still
+read every question against every other one by hand.
 
 ### Subpart / blank independence
 A student who gets one part wrong must still be able to attempt the next —
@@ -114,6 +121,19 @@ matching whatever course material the students study from) rather than
 mixing textbook conventions — forcing students to mentally translate between
 the quiz's wording and their notes costs time disproportionately and isn't
 part of what's being assessed.
+
+### Code/identifier rendering
+Inline code (variable names, function calls) with underscores can render
+wrong on some Moodle sites — a site's text filters have been observed to eat
+or mangle underscores inside already-valid `<code>`/`<pre>` HTML (e.g.
+`sd(fold_errors) / sqrt(K)` rendering as `sd(fold errors) / sqrt(K)`). This
+is site-configuration-dependent, not universal, and neither `lint` nor
+`render-question` can fully reproduce a live Moodle instance's filter chain
+(`render-question` runs the HTML through MathJax only, not Moodle's PHP
+filters). `lint`'s `code-underscore-risk` finding flags any underscore
+inside a code span as a cheap heads-up; treat it as a prompt to spot-check
+that specific question against the real course Moodle site, not as proof of
+a problem.
 
 ### ESL-friendly wording
 Assume the cohort includes second-language English speakers: prefer plain,

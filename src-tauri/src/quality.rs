@@ -5,8 +5,10 @@
 //! - [`lint_quiz_xml`]: mechanical format checks (missing correct answers,
 //!   free-credit multi-response weighting, match-everything wildcards, broken
 //!   `@@PLUGINFILE@@` attachments, stripped math delimiters, malformed cloze
-//!   items, unsupported question types) plus an analytic random-guess baseline
-//!   per question.
+//!   items, unsupported question types, a later question's text/options
+//!   leaking an earlier question's correct answer verbatim, underscores
+//!   inside `<code>`/`<pre>` that some Moodle sites' filters mangle) plus an
+//!   analytic random-guess baseline per question.
 //! - [`autotest_quiz`]: answer-key round-trip — synthesizes the intended-correct
 //!   response for every auto-gradeable question straight from the parsed model,
 //!   grades it, and asserts full marks; also synthesizes a deliberately wrong
@@ -107,6 +109,11 @@ fn finding(
     });
 }
 
+fn extract_tag_contents(html: &str, tag: &str) -> Vec<String> {
+    let re = Regex::new(&format!(r"(?is)<{tag}\b[^>]*>(.*?)</{tag}\s*>")).unwrap();
+    re.captures_iter(html).map(|c| c[1].to_string()).collect()
+}
+
 fn pluginfile_regex() -> Regex {
     Regex::new(r#"@@PLUGINFILE@@/([^"'\s<>\)\]]+)"#).unwrap()
 }
@@ -198,6 +205,47 @@ pub fn lint_quiz_xml(xml: &str) -> Result<LintReport, String> {
         });
     }
 
+    // A question's correct-answer value appearing verbatim in a *later*
+    // question's text/options — the "next question spoils this one's
+    // answer" trap (e.g. every option of "interpret R²" states R²=96.5%,
+    // which was also the correct answer to the previous "compute R²"
+    // question). Heuristic and Warning-level (not Error): flags the correct
+    // value textually recurring downstream, which is sometimes intentional
+    // (a value legitimately carried across parts) so needs human judgement.
+    for i in 0..quiz.questions.len() {
+        let values = correct_value_strings(&quiz.questions[i]);
+        if values.is_empty() {
+            continue;
+        }
+        for qj in &quiz.questions[i + 1..] {
+            let mut haystacks: Vec<&str> = vec![&qj.question_text];
+            for a in &qj.answers {
+                haystacks.push(&a.text);
+            }
+            for item in &qj.cloze_items {
+                for o in &item.options {
+                    haystacks.push(&o.text);
+                }
+            }
+            for p in &qj.match_pairs {
+                haystacks.push(&p.question_text);
+                haystacks.push(&p.answer_text);
+            }
+            if let Some(val) = values.iter().find(|v| haystacks.iter().any(|h| h.contains(v.as_str()))) {
+                finding(
+                    &mut findings,
+                    "possible-answer-leak",
+                    Severity::Warning,
+                    Some(&qj.name),
+                    format!(
+                        "Contains '{val}' — the correct answer to earlier question '{}' — verify this isn't leaking that answer",
+                        quiz.questions[i].name
+                    ),
+                );
+            }
+        }
+    }
+
     // Quiz-level expected chance score, weighted by default_grade.
     let mut exp_total = 0.0;
     let mut max_total = 0.0;
@@ -224,6 +272,56 @@ pub fn lint_quiz_xml(xml: &str) -> Result<LintReport, String> {
     })
 }
 
+/// Literal string forms of a question's correct answer, for the
+/// `possible-answer-leak` cross-question check — only for question types
+/// where the "answer" is a specific number that could plausibly recur
+/// verbatim in unrelated text (numerical, numeric-looking shortanswer).
+/// Trivial short numbers (fewer than 3 significant digits, e.g. "5%") are
+/// dropped to keep the check from firing on coincidental noise.
+fn correct_value_strings(q: &Question) -> Vec<String> {
+    let mut vals: Vec<String> = Vec::new();
+    match q.qtype {
+        QuestionType::Numerical => {
+            for a in &q.numerical_answers {
+                if a.fraction >= FULL {
+                    push_numeric_variants(&mut vals, a.value);
+                }
+            }
+        }
+        QuestionType::ShortAnswer => {
+            for a in &q.answers {
+                if a.fraction >= FULL {
+                    if let Ok(v) = a.text.trim().parse::<f64>() {
+                        push_numeric_variants(&mut vals, v);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    vals.sort();
+    vals.dedup();
+    vals
+}
+
+fn push_numeric_variants(vals: &mut Vec<String>, v: f64) {
+    let candidates = [
+        format!("{v}"),
+        format!("{v:.1}"),
+        format!("{v:.2}"),
+        format!("{v:.3}"),
+        format!("{:.1}%", v * 100.0),
+        format!("{:.2}%", v * 100.0),
+        format!("{:.0}%", v * 100.0),
+    ];
+    for c in candidates {
+        let significant_digits = c.chars().filter(|ch| ch.is_ascii_digit()).count();
+        if significant_digits >= 3 {
+            vals.push(c);
+        }
+    }
+}
+
 fn lint_question(q: &Question, pf_re: &Regex, findings: &mut Vec<LintFinding>) {
     let name = q.name.as_str();
 
@@ -243,6 +341,41 @@ fn lint_question(q: &Question, pf_re: &Regex, findings: &mut Vec<LintFinding>) {
             Severity::Warning,
             Some(name),
             r"Contains \[ or \] math delimiters — Moodle's MathJax filter strips these; use $...$ or $$...$$".into(),
+        );
+    }
+
+    // Underscores inside <code>/<pre> spans — some Moodle sites' text filters
+    // (Markdown re-processing, legacy auto-format) have been observed to eat
+    // or mangle underscores in already-rendered HTML code content (e.g.
+    // `fold_errors` rendering as `fold errors`). This is site-dependent, not
+    // universal, so it's Info rather than Warning — but it's cheap to flag
+    // for a manual check against the real Moodle instance, since neither
+    // this tool's `render-question` nor a plain read of the source `.Rmd`
+    // will catch it (the code is already valid HTML by the time it's here).
+    let mut code_underscores = 0usize;
+    for t in &texts {
+        for tag in ["code", "pre"] {
+            for content in extract_tag_contents(t, tag) {
+                code_underscores += content.matches('_').count();
+            }
+        }
+    }
+    for a in &q.answers {
+        for tag in ["code", "pre"] {
+            for content in extract_tag_contents(&a.text, tag) {
+                code_underscores += content.matches('_').count();
+            }
+        }
+    }
+    if code_underscores > 0 {
+        finding(
+            findings,
+            "code-underscore-risk",
+            Severity::Info,
+            Some(name),
+            format!(
+                "{code_underscores} underscore(s) inside <code>/<pre> content — some Moodle sites' text filters mangle underscores in code (e.g. 'fold_errors' → 'fold errors'); spot-check this question on the real Moodle instance"
+            ),
         );
     }
 
