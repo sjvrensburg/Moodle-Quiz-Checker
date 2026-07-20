@@ -29,6 +29,34 @@ fn render_preserves_raw_math_html_and_wires_up_mathjax() {
 }
 
 #[test]
+fn render_sanitizes_script_tags_in_question_and_answer_html() {
+    // This document is served directly by the agent HTTP server as
+    // text/html (with permissive CORS) and opened in a browser by the CLI
+    // workflow, so untrusted Moodle question/answer/feedback HTML must not
+    // be able to run script in either context.
+    let xml = wrap_quiz(
+        r#"<question type="shortanswer">
+            <name><text>xss q</text></name>
+            <questiontext format="html"><text><![CDATA[<p>Solve \(x=1\)</p><script>alert(1)</script><img src=x onerror=alert(2)>]]></text></questiontext>
+            <answer fraction="100"><text><![CDATA[<script>alert(3)</script>ok]]></text></answer>
+        </question>"#,
+    );
+    let quiz = parse_quiz_xml(&xml, "bank", None).unwrap();
+    let html = question_to_standalone_html(&quiz.questions[0]);
+
+    // The document legitimately embeds two <script> tags of its own (the
+    // MathJax config + loader) — count them rather than asserting zero, so
+    // this only catches a *third* script tag injected from question content.
+    assert_eq!(html.matches("<script").count(), 2, "{html}");
+    assert!(!html.contains("onerror"), "{html}");
+    assert!(!html.contains("alert("), "{html}");
+    // Benign markup and math delimiters must survive sanitization.
+    assert!(html.contains("<p>Solve"), "{html}");
+    assert!(html.contains(r"\(x=1\)"), "{html}");
+    assert!(html.contains("ok</li>"), "{html}");
+}
+
+#[test]
 fn render_escapes_question_name_in_title_and_heading() {
     let xml = wrap_quiz(
         r#"<question type="shortanswer">

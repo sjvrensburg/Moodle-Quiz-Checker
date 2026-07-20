@@ -2,7 +2,9 @@
 //! quiz-level reviewer document (all questions with answer keys inline).
 
 use crate::model::{Attempt, GradeState, Question, QuestionType, Quiz};
+use ammonia::Builder;
 use serde_json::json;
+use std::collections::HashSet;
 
 pub fn attempt_to_json(quiz: &Quiz, attempt: &Attempt) -> serde_json::Value {
     json!({
@@ -189,16 +191,39 @@ pub fn quiz_to_markdown(quiz: &Quiz) -> String {
     out
 }
 
-/// Renders a single question's *raw* HTML (question text, answers, feedback
-/// — unstripped, unlike [`quiz_to_markdown`]) into a standalone HTML document
-/// with the MathJax runtime wired up, so it can be opened in a browser (or
-/// screenshotted by a browser-automation tool) to visually confirm math
-/// actually renders. This is a text-vs-visual complement to the `lint` gate's
-/// `math-delimiters` rule, which can only catch the one known textual failure
-/// mode (literal `\[...\]`/`\(...\)` display-math delimiters that Moodle's
-/// filter strips) and can't tell whether other LaTeX is malformed or whether
-/// the exams→HTML conversion step introduced a broken form not present in the
-/// source.
+/// Same allowlist as the frontend's `sanitizeHtml` (`src/lib/sanitize.ts`,
+/// DOMPurify-based) so Moodle-authored HTML gets equivalent treatment
+/// whether it's rendered in the Svelte webview or in this standalone export.
+fn sanitize_moodle_html(html: &str) -> String {
+    Builder::default()
+        .tags(HashSet::from([
+            "p", "br", "b", "i", "em", "strong", "u", "s", "sub", "sup", "span", "div", "ul", "ol", "li", "a", "img",
+            "table", "thead", "tbody", "tr", "td", "th", "blockquote", "code", "pre", "h1", "h2", "h3", "h4", "h5",
+            "h6", "hr",
+        ]))
+        .generic_attributes(HashSet::from([
+            "href", "src", "alt", "title", "class", "style", "target", "colspan", "rowspan",
+        ]))
+        .clean(html)
+        .to_string()
+}
+
+/// Renders a single question's HTML (question text, answers, feedback —
+/// sanitized but otherwise unstripped, unlike [`quiz_to_markdown`]) into a
+/// standalone HTML document with the MathJax runtime wired up, so it can be
+/// opened in a browser (or screenshotted by a browser-automation tool) to
+/// visually confirm math actually renders. This is a text-vs-visual
+/// complement to the `lint` gate's `math-delimiters` rule, which can only
+/// catch the one known textual failure mode (literal `\[...\]`/`\(...\)`
+/// display-math delimiters that Moodle's filter strips) and can't tell
+/// whether other LaTeX is malformed or whether the exams→HTML conversion
+/// step introduced a broken form not present in the source.
+///
+/// Moodle HTML is sanitized (not merely escaped) before embedding — this
+/// document is served directly by the agent HTTP server (`GET
+/// /quizzes/:id/questions/:qid/render.html`) as well as written to disk by
+/// the CLI, so untrusted question/answer/feedback HTML must not be able to
+/// run script in either context.
 ///
 /// MathJax is loaded from a CDN rather than vendored, so viewing the
 /// rendered result requires the browser opening the file to have network
@@ -212,7 +237,7 @@ pub fn question_to_standalone_html(q: &Question) -> String {
         q.default_grade
     ));
     body.push_str("<section class=\"question-text\">\n");
-    body.push_str(&q.question_text);
+    body.push_str(&sanitize_moodle_html(&q.question_text));
     body.push_str("\n</section>\n");
 
     if !q.answers.is_empty() {
@@ -220,7 +245,8 @@ pub fn question_to_standalone_html(q: &Question) -> String {
         for a in &q.answers {
             body.push_str(&format!(
                 "<li><span class=\"fraction\">({:.0}%)</span> {}</li>\n",
-                a.fraction, a.text
+                a.fraction,
+                sanitize_moodle_html(&a.text)
             ));
         }
         body.push_str("</ul>\n</section>\n");
@@ -234,7 +260,8 @@ pub fn question_to_standalone_html(q: &Question) -> String {
     ] {
         if let Some(fb) = fb {
             body.push_str(&format!(
-                "<section class=\"feedback\"><h3>{label}</h3>\n{fb}\n</section>\n"
+                "<section class=\"feedback\"><h3>{label}</h3>\n{}\n</section>\n",
+                sanitize_moodle_html(fb)
             ));
         }
     }

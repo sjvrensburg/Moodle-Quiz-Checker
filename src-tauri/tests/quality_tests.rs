@@ -348,3 +348,35 @@ fn compare_non_rexams_names_unaffected_by_replicate_normalisation() {
     assert_eq!(report.items[0].key, "Q1 (ex1)");
     assert!(!report.notes.iter().any(|n| n.contains("stripped replicate prefix")));
 }
+
+#[test]
+fn compare_does_not_merge_unrelated_question_sharing_replicate_base_name() {
+    // A plain question literally named "q1_why_cv" must stay its own group,
+    // not get silently folded into the "R<n> Q1 : q1_why_cv" replicate
+    // group just because the stripped base happens to match.
+    let xml = wrap_quiz(&format!(
+        "{}{}{}",
+        r#"<question type="numerical">
+            <name><text>R1 Q1 : q1_why_cv</text></name>
+            <questiontext format="html"><text>a=1</text></questiontext>
+            <answer fraction="100"><text>10</text><tolerance>0</tolerance></answer>
+        </question>"#,
+        r#"<question type="numerical">
+            <name><text>R2 Q1 : q1_why_cv</text></name>
+            <questiontext format="html"><text>a=2</text></questiontext>
+            <answer fraction="100"><text>10</text><tolerance>0</tolerance></answer>
+        </question>"#,
+        r#"<question type="numerical">
+            <name><text>q1_why_cv</text></name>
+            <questiontext format="html"><text>unrelated question</text></questiontext>
+            <answer fraction="100"><text>99</text><tolerance>0</tolerance></answer>
+        </question>"#
+    ));
+    let quiz = parse_quiz_xml(&xml, "bank", None).unwrap();
+    let report = compare_quizzes(&[quiz], false);
+    assert_eq!(report.items.len(), 1, "{}", report.to_text());
+    assert_eq!(report.items[0].key, "q1_why_cv");
+    assert_eq!(report.items[0].versions, 2, "the unrelated plain-named question must not join the replicate group");
+    assert_eq!(report.singletons.len(), 1);
+    assert_eq!(report.singletons[0], "q1_why_cv");
+}

@@ -1063,15 +1063,25 @@ pub fn compare_quizzes(quizzes: &[Quiz], group_by_name: bool) -> CompareReport {
         if quizzes.len() == 1 && !group_by_name {
             notes.push("single file given — grouping versions by question name".into());
         }
-        let mut by_name: BTreeMap<String, Vec<&Question>> = BTreeMap::new();
+        // Normalised (replicate-stripped) names get their own namespace
+        // ("\0"-prefixed bucket key, stripped back off for display) so a
+        // question that isn't itself an R/exams replicate but happens to be
+        // named exactly like one's stripped base (e.g. a plain question
+        // named "q1_why_cv" alongside replicates "R1 Q1 : q1_why_cv", "R2 Q1
+        // : q1_why_cv", ...) is never silently folded into that group —
+        // only names that actually matched the replicate pattern merge with
+        // each other.
+        let mut by_name: BTreeMap<String, (String, Vec<&Question>)> = BTreeMap::new();
         let mut collapsed = 0usize;
         for quiz in quizzes {
             for q in &quiz.questions {
                 let normalized = normalize_replicate_name(&q.name);
-                if normalized != q.name {
+                let matched = normalized != q.name;
+                if matched {
                     collapsed += 1;
                 }
-                by_name.entry(normalized).or_default().push(q);
+                let bucket_key = if matched { format!("\0{normalized}") } else { q.name.clone() };
+                by_name.entry(bucket_key).or_insert_with(|| (normalized, Vec::new())).1.push(q);
             }
         }
         if collapsed > 0 {
@@ -1079,7 +1089,7 @@ pub fn compare_quizzes(quizzes: &[Quiz], group_by_name: bool) -> CompareReport {
                 "grouped by normalised name — stripped replicate prefix on {collapsed} question(s)"
             ));
         }
-        groups.extend(by_name);
+        groups.extend(by_name.into_values());
     } else {
         let counts: Vec<usize> = quizzes.iter().map(|z| z.questions.len()).collect();
         if counts.windows(2).any(|w| w[0] != w[1]) {
