@@ -104,6 +104,10 @@ enum Command {
         #[arg(long, value_enum, default_value = "markdown")]
         format: ExportFormat,
     },
+    /// Render one question to a standalone, screenshot-able HTML file (with
+    /// MathJax wired up) for visual confirmation that its math actually
+    /// renders — prints to stdout, redirect to a file to view/screenshot it.
+    RenderQuestion { quiz_id: String, question_id: String },
 }
 
 #[derive(Clone, clap::ValueEnum)]
@@ -220,6 +224,9 @@ fn main() -> anyhow::Result<()> {
             }
             ExportFormat::Markdown => println!("{}", app.export_quiz_markdown(&quiz_id)?),
         },
+        Command::RenderQuestion { quiz_id, question_id } => {
+            println!("{}", app.render_question_html(&quiz_id, &question_id)?);
+        }
     }
 
     Ok(())

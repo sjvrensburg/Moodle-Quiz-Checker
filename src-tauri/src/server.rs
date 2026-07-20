@@ -45,6 +45,10 @@ pub fn build_router(app: SharedApp) -> Router {
         .route("/quizzes/:quiz_id/autotest", get(autotest_quiz))
         .route("/compare", post(compare))
         .route("/quizzes/:quiz_id/reviewer.md", get(export_quiz_markdown))
+        .route(
+            "/quizzes/:quiz_id/questions/:question_id/render.html",
+            get(render_question_html),
+        )
         .layer(CorsLayer::permissive())
         .with_state(app)
 }
@@ -228,6 +232,16 @@ async fn compare(Json(body): Json<CompareBody>) -> AxumResponse {
 async fn export_quiz_markdown(State(app): State<SharedApp>, Path(quiz_id): Path<String>) -> AxumResponse {
     match app.export_quiz_markdown(&quiz_id) {
         Ok(md) => ([("content-type", "text/markdown; charset=utf-8")], md).into_response(),
+        Err(e) => err_response(e),
+    }
+}
+
+async fn render_question_html(
+    State(app): State<SharedApp>,
+    Path((quiz_id, question_id)): Path<(String, String)>,
+) -> AxumResponse {
+    match app.render_question_html(&quiz_id, &question_id) {
+        Ok(html) => ([("content-type", "text/html; charset=utf-8")], html).into_response(),
         Err(e) => err_response(e),
     }
 }

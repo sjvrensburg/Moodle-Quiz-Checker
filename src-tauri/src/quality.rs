@@ -1064,10 +1064,20 @@ pub fn compare_quizzes(quizzes: &[Quiz], group_by_name: bool) -> CompareReport {
             notes.push("single file given — grouping versions by question name".into());
         }
         let mut by_name: BTreeMap<String, Vec<&Question>> = BTreeMap::new();
+        let mut collapsed = 0usize;
         for quiz in quizzes {
             for q in &quiz.questions {
-                by_name.entry(q.name.clone()).or_default().push(q);
+                let normalized = normalize_replicate_name(&q.name);
+                if normalized != q.name {
+                    collapsed += 1;
+                }
+                by_name.entry(normalized).or_default().push(q);
             }
+        }
+        if collapsed > 0 {
+            notes.push(format!(
+                "grouped by normalised name — stripped replicate prefix on {collapsed} question(s)"
+            ));
         }
         groups.extend(by_name);
     } else {
@@ -1133,6 +1143,18 @@ pub fn compare_quizzes(quizzes: &[Quiz], group_by_name: bool) -> CompareReport {
         singletons,
         notes,
     }
+}
+
+/// Strips R/exams' `exams2moodle(..., n = N)` replicate prefix (e.g.
+/// `"R1 Q1 : q1_why_cv"`) so that versions of the same underlying item
+/// collapse back into one group when grouping by name. Names that don't
+/// match the pattern are returned unchanged.
+fn normalize_replicate_name(name: &str) -> String {
+    let re = Regex::new(r"^R\d+\s+Q\d+\s*:\s*(.+)$").unwrap();
+    re.captures(name)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().trim().to_string())
+        .unwrap_or_else(|| name.to_string())
 }
 
 fn normalize_text_signature(html: &str) -> String {

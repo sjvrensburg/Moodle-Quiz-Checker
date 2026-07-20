@@ -47,6 +47,9 @@ export const api = {
 	exportQuizMarkdown(quizId: string): Promise<string> {
 		return invoke("export_quiz_markdown", { quizId });
 	},
+	renderQuestionHtml(quizId: string, questionId: string): Promise<string> {
+		return invoke("render_question_html", { quizId, questionId });
+	},
 	startAgentServer(port: number): Promise<string> {
 		return invoke("start_agent_server", { port });
 	}

@@ -300,3 +300,51 @@ fn compare_groups_by_name_within_single_file() {
     assert!(report.items[0].flagged);
     assert_eq!(report.items[0].versions, 2);
 }
+
+#[test]
+fn compare_groups_rexams_replicate_names_in_single_file() {
+    // R/exams' exams2moodle(..., n = N) bakes the replicate label into the
+    // name itself ("R1 Q1 : q1_why_cv", "R2 Q1 : q1_why_cv", ...). Those must
+    // collapse into one group, not be treated as N singletons (issue #1).
+    let xml = wrap_quiz(&format!(
+        "{}{}{}",
+        r#"<question type="numerical">
+            <name><text>R1 Q1 : q1_why_cv</text></name>
+            <questiontext format="html"><text>a=1</text></questiontext>
+            <answer fraction="100"><text>10</text><tolerance>0</tolerance></answer>
+        </question>"#,
+        r#"<question type="numerical">
+            <name><text>R2 Q1 : q1_why_cv</text></name>
+            <questiontext format="html"><text>a=2</text></questiontext>
+            <answer fraction="100"><text>10</text><tolerance>0</tolerance></answer>
+        </question>"#,
+        r#"<question type="numerical">
+            <name><text>R3 Q1 : q1_why_cv</text></name>
+            <questiontext format="html"><text>a=3</text></questiontext>
+            <answer fraction="100"><text>10</text><tolerance>0</tolerance></answer>
+        </question>"#
+    ));
+    let quiz = parse_quiz_xml(&xml, "bank", None).unwrap();
+    let report = compare_quizzes(&[quiz], false);
+    assert_eq!(report.items.len(), 1, "{}", report.to_text());
+    assert_eq!(report.items[0].key, "q1_why_cv");
+    assert_eq!(report.items[0].versions, 3);
+    assert!(report.items[0].flagged, "constant answer=10 across replicates should be flagged");
+    assert!(
+        report.notes.iter().any(|n| n.contains("stripped replicate prefix")),
+        "{:?}",
+        report.notes
+    );
+}
+
+#[test]
+fn compare_non_rexams_names_unaffected_by_replicate_normalisation() {
+    // Non-matching names (no "R<n> Q<n> :" prefix) must keep exact-name
+    // grouping — the normalisation is additive, not a behaviour change.
+    let v1 = parse_quiz_xml(&version_xml("ex1", 3, 5, 42), "v1", None).unwrap();
+    let v2 = parse_quiz_xml(&version_xml("ex1", 7, 2, 42), "v2", None).unwrap();
+    let report = compare_quizzes(&[v1, v2], false);
+    assert_eq!(report.items.len(), 1);
+    assert_eq!(report.items[0].key, "Q1 (ex1)");
+    assert!(!report.notes.iter().any(|n| n.contains("stripped replicate prefix")));
+}
